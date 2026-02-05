@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Canteen Pro System</title>
+<style>
+body{
+margin:0;
+font-family:Arial;
+background:linear-gradient(135deg,#ff9a9e,#fad0c4,#fbc2eb,#a6c1ee);
+background-size:400% 400%;
+animation:bgMove 10s infinite alternate;
+}
+@keyframes bgMove{
+0%{background-position:left;}
+100%{background-position:right;}
+}
+
+.loginBox{
+width:350px;
+background:white;
+padding:30px;
+border-radius:15px;
+box-shadow:0 15px 40px rgba(0,0,0,0.3);
+position:absolute;
+top:50%;
+left:50%;
+transform:translate(-50%,-50%);
+text-align:center;
+animation:fadeIn 1s ease-in-out;
+}
+@keyframes fadeIn{
+from{opacity:0;transform:translate(-50%,-60%);}
+to{opacity:1;transform:translate(-50%,-50%);}
+}
+.loginBox input{
+width:90%;
+padding:10px;
+margin:10px 0;
+border-radius:8px;
+border:1px solid #ccc;
+}
+.loginBox button{
+width:100%;
+padding:10px;
+background:#28a745;
+color:white;
+border:none;
+border-radius:8px;
+font-weight:bold;
+cursor:pointer;
+}
+
+.container{
+display:none;
+padding:20px;
+background:rgba(255,255,255,0.95);
+margin:20px;
+border-radius:15px;
+box-shadow:0 10px 30px rgba(0,0,0,0.2);
+}
+
+input,select,button{
+padding:8px;
+margin:5px;
+border-radius:6px;
+border:1px solid #ccc;
+}
+
+button{
+background:#007bff;
+color:white;
+border:none;
+cursor:pointer;
+transition:0.3s;
+}
+button:hover{
+background:#0056b3;
+transform:scale(1.05);
+}
+
+.editBtn{background:orange;}
+.deleteBtn{background:red;}
+
+table{
+width:100%;
+border-collapse:collapse;
+margin-top:15px;
+}
+table,th,td{
+border:1px solid #ddd;
+}
+th{
+background:#007bff;
+color:white;
+}
+th,td{
+padding:8px;
+text-align:center;
+}
+
+.customerCard{
+background:#f1f1f1;
+padding:10px;
+margin:8px 0;
+border-radius:8px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+flex-wrap:wrap;
+}
+
+.paid{color:green;font-weight:bold;}
+.unpaid{color:red;font-weight:bold;}
+.parchi{color:orange;font-weight:bold;}
+
+.totalBox{
+font-size:18px;
+font-weight:bold;
+margin-top:10px;
+color:#333;
+}
+
+.hidden{display:none;}
+
+@media(max-width:600px){
+.loginBox,.container{width:95%;margin:10px;}
+table{font-size:12px;}
+.customerCard{flex-direction:column;align-items:flex-start;}
+}
+</style>
+</head>
+<body>
+
+<div class="loginBox" id="loginPage">
+<h2>🔐 Canteen Login</h2>
+<input type="password" id="password" placeholder="Enter Password">
+<button onclick="login()">Login</button>
+</div>
+
+<div class="container" id="mainPage">
+<center><h2>🍔 Canteen Management</h2> </center>
+
+<input type="text" id="custName" placeholder="Customer Name">
+<input type="text" id="custNumber" placeholder="Mobile Number">
+<button onclick="addCustomer()">Add Customer</button>
+
+<input type="text" id="searchBox" placeholder="Search Name or Number" onkeyup="searchCustomer()">
+
+<div id="customerList"></div>
+<hr>
+
+<div id="customerSection" class="hidden">
+<h3 id="customerTitle"></h3>
+<input type="text" id="orderDate" readonly>
+
+<select id="itemType" onchange="toggleOtherItem()">
+<option value="">Select Item</option>
+<option value="tea">Tea - ₹6</option>
+<option value="snack">Snack - ₹15</option>
+<option value="lunch">Lunch - ₹45</option>
+<option value="dinner">Dinner - ₹45</option>
+<option value="other">Other Item</option>
+</select>
+
+<div id="otherItemBox" style="display:none;">
+<input type="text" id="otherName" placeholder="Item Name">
+<input type="number" id="otherRate" placeholder="Rate">
+</div>
+
+<input type="number" id="qty" placeholder="Quantity">
+
+<select id="statusType">
+<option value="due">Due</option>
+<option value="paid">Paid</option>
+<option value="parchi">Parchi</option>
+</select>
+
+<button onclick="addOrder()">Add Order</button>
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th>Item</th>
+<th>Qty</th>
+<th>Rate</th>
+<th>Total</th>
+<th>Status</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody id="orderList"></tbody>
+</table>
+
+<div class="totalBox">
+Total Due: ₹ <span id="total">0</span>
+</div>
+
+<br>
+<button onclick="printBill()">🧾 Print Bill</button>
+<button onclick="downloadMonthlyExcel()">📊 Monthly Excel (This Customer)</button>
+<button onclick="downloadMonthlyAll()">📊 Monthly Excel (All Customers)</button>
+
+</div>
+</div>
+
+<script>
+
+const systemPassword="7999";
+let currentCustomer="";
+let currentCustomerName="";
+
+function login(){
+if(password.value===systemPassword){
+loginPage.style.display="none";
+mainPage.style.display="block";
+loadCustomers();
+}else alert("Wrong Password");
+}
+
+// Add Customer
+function addCustomer(){
+let name=custName.value;
+let number=custNumber.value;
+if(!name||!number){alert("Fill Details");return;}
+let customers=JSON.parse(localStorage.getItem("customers"))||[];
+if(customers.some(c=>c.number===number)){alert("Customer already exists");return;}
+let id=customers.length?customers[customers.length-1].id+1:1;
+customers.push({id,name,number});
+localStorage.setItem("customers",JSON.stringify(customers));
+custName.value=""; custNumber.value="";
+loadCustomers();
+}
+
+// Load Customers
+function loadCustomers(){
+let customers=JSON.parse(localStorage.getItem("customers"))||[];
+customerList.innerHTML="";
+customers.forEach(c=>{
+customerList.innerHTML+=`
+<div class="customerCard">
+<span>${c.id}. ${c.name} (${c.number})</span>
+<div>
+<button onclick="openCustomer(${c.id},'${c.name}','${c.number}')">Open</button>
+<button class="editBtn" onclick="editCustomer(${c.id})">Edit</button>
+<button class="deleteBtn" onclick="deleteCustomer(${c.id},'${c.number}')">Delete</button>
+</div>
+</div>`;
+});
+}
+
+// Edit Customer
+function editCustomer(id){
+let customers=JSON.parse(localStorage.getItem("customers"));
+let customer=customers.find(c=>c.id===id);
+let newName=prompt("Edit Name",customer.name);
+if(newName===null) return;
+let newNumber=prompt("Edit Mobile",customer.number);
+if(newNumber===null) return;
+if(newNumber!==customer.number){
+let oldData=localStorage.getItem(customer.number);
+if(oldData){localStorage.setItem(newNumber,oldData); localStorage.removeItem(customer.number);}
+}
+customer.name=newName; customer.number=newNumber;
+localStorage.setItem("customers",JSON.stringify(customers));
+loadCustomers();
+}
+
+// Delete Customer
+function deleteCustomer(id,number){
+if(confirm("Delete Customer?")){
+let customers=JSON.parse(localStorage.getItem("customers"));
+customers=customers.filter(c=>c.id!==id);
+localStorage.setItem("customers",JSON.stringify(customers));
+localStorage.removeItem(number);
+loadCustomers();
+}
+}
+
+// Search Customer
+function searchCustomer(){
+let filter=document.getElementById("searchBox").value.toLowerCase();
+let customers=JSON.parse(localStorage.getItem("customers"))||[];
+customerList.innerHTML="";
+customers.forEach(c=>{
+if((c.name+" "+c.number).toLowerCase().includes(filter)){
+customerList.innerHTML+=`
+<div class="customerCard">
+<span>${c.id}. ${c.name} (${c.number})</span>
+<div>
+<button onclick="openCustomer(${c.id},'${c.name}','${c.number}')">Open</button>
+<button class="editBtn" onclick="editCustomer(${c.id})">Edit</button>
+<button class="deleteBtn" onclick="deleteCustomer(${c.id},'${c.number}')">Delete</button>
+</div>
+</div>`;
+}
+});
+}
+
+// Open Customer Orders
+function openCustomer(id,name,number){
+currentCustomer=number;
+currentCustomerName=name;
+customerSection.classList.remove("hidden");
+customerTitle.innerText="Customer "+id+" : "+name;
+setToday();
+showOrders();
+}
+
+// Set Today
+function setToday(){
+let t=new Date();
+orderDate.value=t.getDate().toString().padStart(2,'0')+"-"+(t.getMonth()+1).toString().padStart(2,'0')+"-"+t.getFullYear();
+}
+
+// Toggle Other Item
+function toggleOtherItem(){
+otherItemBox.style.display=itemType.value==="other"?"block":"none";
+}
+
+// Add Order
+function addOrder(){
+let type=itemType.value;
+let qtyValue=parseInt(qty.value);
+let status=statusType.value;
+if(!type||!qtyValue){alert("Fill Data");return;}
+let itemName="",rate=0;
+if(type==="tea"){itemName="Tea";rate=6;}
+if(type==="snack"){itemName="Snack";rate=15;}
+if(type==="lunch"){itemName="Lunch";rate=45;}
+if(type==="dinner"){itemName="Dinner";rate=45;}
+if(type==="other"){itemName=otherName.value; rate=parseInt(otherRate.value); if(!itemName||!rate){alert("Enter Other Item");return;}}
+let total=qtyValue*rate;
+let data=JSON.parse(localStorage.getItem(currentCustomer))||[];
+data.push({date:orderDate.value,item:itemName,qty:qtyValue,rate:rate,total:total,status:status});
+localStorage.setItem(currentCustomer,JSON.stringify(data));
+qty.value=""; otherName.value=""; otherRate.value="";
+showOrders();
+}
+
+// Show Orders
+function showOrders(){
+let data=JSON.parse(localStorage.getItem(currentCustomer))||[];
+orderList.innerHTML=""; let totalDue=0;
+data.forEach((o,i)=>{
+if(o.status==="due") totalDue+=o.total;
+let statusText=o.status==="paid"?"<span class='paid'>Paid</span>":o.status==="parchi"?"<span class='parchi'>Parchi</span>":"<span class='unpaid'>Due</span>";
+orderList.innerHTML+=`<tr>
+<td>${o.date}</td>
+<td>${o.item}</td>
+<td>${o.qty}</td>
+<td>${o.rate}</td>
+<td>${o.total}</td>
+<td>${statusText}</td>
+<td><button onclick="deleteOrder(${i})">Delete</button></td>
+</tr>`;
+});
+total.innerText=totalDue;
+}
+
+// Delete Order
+function deleteOrder(i){
+let data=JSON.parse(localStorage.getItem(currentCustomer));
+data.splice(i,1);
+localStorage.setItem(currentCustomer,JSON.stringify(data));
+showOrders();
+}
+
+// Print Bill
+function printBill(){
+let data=JSON.parse(localStorage.getItem(currentCustomer))||[];
+if(!data.length){alert("No Orders"); return;}
+let rows="",totalDue=0;
+data.forEach(o=>{ if(o.status==="due") totalDue+=o.total; rows+=`<tr><td>${o.date}</td><td>${o.item}</td><td>${o.qty}</td><td>${o.rate}</td><td>${o.total}</td><td>${o.status}</td></tr>`;});
+let win=window.open("","","width=800,height=600");
+win.document.write(`<h2>Canteen Bill</h2><p>Customer: ${currentCustomerName}</p><table border="1" width="100%" cellpadding="5"><tr><th>Date</th><th>Item</th><th>Qty</th><th>Rate</th><th>Total</th><th>Status</th></tr>${rows}</table><h3>Total Due: ₹${totalDue}</h3>`);
+win.print();
+}
+
+// Monthly Excel (This Customer)
+function downloadMonthlyExcel(){
+let month=new Date().getMonth()+1;
+let data=JSON.parse(localStorage.getItem(currentCustomer))||[];
+let csv="Date,Item,Qty,Rate,Total,Status\n";
+data.forEach(o=>{ if(parseInt(o.date.split("-")[1])===month){ csv+=`${o.date},${o.item},${o.qty},${o.rate},${o.total},${o.status}\n`; }});
+let blob=new Blob([csv],{type:"text/csv"});
+let a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=currentCustomerName+"_Monthly_Report.csv"; a.click();
+}
+
+// Monthly Excel (All Customers)
+function downloadMonthlyAll(){
+let month=new Date().getMonth()+1;
+let customers=JSON.parse(localStorage.getItem("customers"))||[];
+let csv="Customer Name,Mobile,Date,Item,Qty,Rate,Total,Status\n";
+customers.forEach(c=>{ let data=JSON.parse(localStorage.getItem(c.number))||[]; data.forEach(o=>{ if(parseInt(o.date.split("-")[1])===month){ csv+=`${c.name},${c.number},${o.date},${o.item},${o.qty},${o.rate},${o.total},${o.status}\n`; } }); });
+let blob=new Blob([csv],{type:"text/csv"});
+let a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="Monthly_All_Customers_Report.csv"; a.click();
+}
+
+</script>
+</body>
+</html>
